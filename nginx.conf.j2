@@ -1,0 +1,33 @@
+server {
+    listen 80;
+    server_name test.home.loc;  # Замените на ваше доменное имя
+
+    location / {
+        root /var/www/html;
+        index index.php index.html index.htm;
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/var/run/php/php8.3-fpm.sock;  # Измените на вашу версию PHP
+        fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+        include fastcgi_params;
+    }
+
+    location /flask/ {
+        proxy_pass http://127.0.0.1:5000;  # Порт Flask приложения
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    location /django/ {
+        proxy_pass http://127.0.0.1:8000;  # Порт Django приложения
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}

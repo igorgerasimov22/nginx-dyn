@@ -1,0 +1,118 @@
+---
+- name: Deploy Nginx, PHP-FPM, Python, and Node.js Stand
+  hosts: nginx
+  become: yes
+  tasks:
+
+    - name: Update and upgrade packages
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: Install Nginx
+      apt:
+        name: nginx
+        state: present
+
+    - name: Install PHP and PHP-FPM
+      apt:
+        name:
+          - php
+          - php-fpm
+          - php-mysql
+          - php-xml
+          - php-mbstring
+          - php-curl
+          - php-zip
+        state: present
+
+    - name: Install Python and Pip
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+        state: present
+
+    - name: Install Node.js and npm
+      apt:
+        name:
+          - nodejs
+          - npm
+        state: present
+
+    - name: Install Yarn (optional, for React/Angular)
+      npm:
+        name: yarn
+        global: yes
+
+    - name: Create web root directory
+      file:
+        path: /var/www/html
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Configure Nginx
+      template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/sites-available/default
+      notify:
+        - Restart Nginx
+
+    - name: Check Nginx configuration
+      command: nginx -t
+      register: nginx_test
+      failed_when: nginx_test.rc != 0
+
+    - name: Start and enable Nginx
+      systemd:
+        name: nginx
+        state: started
+        enabled: yes
+
+    - name: Start PHP-FPM
+      systemd:
+        name: php8.3-fpm  # Измените на вашу версию PHP
+        state: started
+        enabled: yes
+
+    - name: Create a virtual environment for Django
+      command: python3 -m venv /var/www/html/django_venv
+      args:
+        creates: /var/www/html/django_venv
+
+    - name: Install Django in the virtual environment
+      command: /var/www/html/django_venv/bin/pip install django
+      register: install_django
+
+    - name: Create the Django app directory
+      file:
+        path: /var/www/html/django_app
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Create requirements.txt for Django
+      copy:
+        dest: /var/www/html/django_app/requirements.txt
+        content: |
+          django
+      when: install_django is succeeded
+
+    - name: Create a sample Django app
+      command: /var/www/html/django_venv/bin/django-admin startproject myproject /var/www/html/django_app
+      args:
+        creates: /var/www/html/django_app/manage.py
+
+    - name: Install Django requirements
+      command: /var/www/html/django_venv/bin/pip install -r /var/www/html/django_app/requirements.txt
+      when: "ansible_python.version.major >= 3"
+
+  handlers:
+    - name: Restart Nginx
+      systemd:
+        name: nginx
+        state: restarted
